@@ -76,7 +76,7 @@ int iBootPatcher(char *infile, char *outfile, char *args, char *RSA, char *debug
         ticket_patch = true;
     }
 
-    if (strcmp(RSA, "TRUE") == 0)
+    if (strcmp(debug, "TRUE") == 0)
     {
         debug_patch = true;
     }
