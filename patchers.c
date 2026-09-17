@@ -619,15 +619,37 @@ int patch_kaslr(struct iboot_img *iboot_in)
         *(uint32_t *)kaslr_search = bswap32(0x002100bf); //Change 4FF00451 to 002100BF resulting in MOV -> MOV NOP;
         return 1;
     }
-    // Unrecognized os_vers: nothing patched, not success. (Every branch
-    // above that actually applies its patch now has its own explicit
-    // return 1 -- falling off the end of a non-void function without one
-    // is undefined behavior, and this used to do exactly that for every
-    // *successful* patch in every branch, not just this fallthrough case.
-    // Confirmed as a real, architecture-dependent bug, not theoretical:
-    // the garbage return value happened to read back non-zero on x86_64,
-    // masking it there, but 0 on arm64, which made a real macOS run treat
-    // a successfully-applied KASLR patch as a hard failure.)
+    // Pre-iOS-6: nothing to patch, and that is SUCCESS, not failure.
+    // KASLR did not exist before iOS 6, so there is no slide-applying
+    // branch in these iBoots to NOP out. Reporting failure here made every
+    // caller that asks for the KASLR patch unconditionally (which is the
+    // only sane way to ask for it -- see blackb0x's Patcher.cpp) unable to
+    // patch any iOS 4/5-era iBEC at all, even though the patch was never
+    // meaningful for those builds. Measured before this change: it failed
+    // on exactly the nine iOS 5-era AppleTV2,1 builds and succeeded on
+    // every iOS 6-or-later one.
+    if (os_vers < 6)
+    {
+        printf("%s: iBoot predates iOS 6 (os_vers %d) -- no KASLR to disable, nothing to do.\n",
+               __FUNCTION__, os_vers);
+        return 1;
+    }
+
+    // Genuinely unsupported (iOS 10+, or an unparseable version): no patch
+    // was applied and one was expected, so this stays a failure. Kept
+    // distinct from the pre-6 case above on purpose -- collapsing the two
+    // would turn "this tool has no KASLR patch for this iBoot" into a
+    // silent no-op.
+    //
+    // (Every branch above that actually applies its patch has its own
+    // explicit return 1. Falling off the end of a non-void function without
+    // one is undefined behavior, and this used to do exactly that for every
+    // *successful* patch in every branch, not just the fallthrough case.
+    // Confirmed as a real, architecture-dependent bug, not theoretical: the
+    // garbage return value happened to read back non-zero on x86_64,
+    // masking it there, but 0 on arm64, which made a real macOS run treat a
+    // successfully-applied KASLR patch as a hard failure.)
+    printf("%s: no KASLR patch available for os_vers %d.\n", __FUNCTION__, os_vers);
     return 0;
 }
 
